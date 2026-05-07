@@ -27,18 +27,18 @@ final class AzureStorageBlobAdapter extends FilesystemAdapter
      * If true, also acts as a fallback for new temporary URLs if no account credentials
      * were provided.
      */
-    public bool $useDirectPublicUrl;
+    public bool $isPublicContainer;
 
     /**
      * @param  array{connection_string: string, container: string, prefix?: string, root?: string}  $config
      */
     public function __construct(array $config)
     {
-        $this->useDirectPublicUrl = $config['use_direct_public_url'] ?? false;
+        $this->isPublicContainer = $config['is_public_container'] ?? $config['use_direct_public_url'] ?? false;
         $serviceClient = BlobServiceClient::fromConnectionString($config['connection_string']);
         $containerClient = $serviceClient->getContainerClient($config['container']);
-        $this->canProvideTemporaryUrls = $this->useDirectPublicUrl || $containerClient->canGenerateSasUri();
-        $adapter = new AzureBlobStorageAdapter($containerClient, $config['prefix'] ?? $config['root'] ?? '', useDirectPublicUrl: $this->useDirectPublicUrl);
+        $this->canProvideTemporaryUrls = $this->isPublicContainer || $containerClient->canGenerateSasUri();
+        $adapter = new AzureBlobStorageAdapter($containerClient, $config['prefix'] ?? $config['root'] ?? '', isPublicContainer: $this->isPublicContainer);
 
         parent::__construct(
             new Filesystem($adapter, $config),
@@ -79,7 +79,7 @@ final class AzureStorageBlobAdapter extends FilesystemAdapter
                 new Config(array_merge(['permissions' => 'r'], $options))
             );
         } catch (UnableToGenerateTemporaryUrl $e) {
-            if ($this->useDirectPublicUrl) {
+            if ($this->isPublicContainer) {
                 return $this->url($path);
             } else {
                 throw $e;

@@ -34,6 +34,7 @@ final class AzureStorageBlobDiskConfig
      *     url?: string,
      *     temporary_url?: string,
      *     is_public_container?: bool,
+     *     use_direct_public_url?: bool,
      *     timeout?: int,
      *     connect_timeout?: int,
      *     verify_ssl?: bool
@@ -60,6 +61,8 @@ final class AzureStorageBlobDiskConfig
         self::assertString($config, 'account_name');
         self::assertString($config, 'connection_string');
         self::assertBool($config, 'is_public_container');
+        // Deprecated alias of is_public_container, kept for backwards compatibility.
+        self::assertBool($config, 'use_direct_public_url');
         self::assertInt($config, 'timeout');
         self::assertInt($config, 'connect_timeout');
         self::assertBool($config, 'verify_ssl');

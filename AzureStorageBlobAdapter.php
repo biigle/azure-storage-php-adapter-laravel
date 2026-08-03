@@ -24,6 +24,7 @@ use GuzzleHttp\Psr7\Uri;
 use Illuminate\Filesystem\FilesystemAdapter;
 use League\Flysystem\Config;
 use League\Flysystem\Filesystem;
+use League\Flysystem\UnableToGenerateTemporaryUrl;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\UriInterface;
 
@@ -38,6 +39,20 @@ final class AzureStorageBlobAdapter extends FilesystemAdapter
      * Whether the configuration of this adapter allows temporary URLs.
      */
     public bool $canProvideTemporaryUrls;
+
+    /**
+     * Whether the container is publicly readable.
+     *
+     * If true, temporary URLs fall back to the direct public URL when no credentials
+     * to generate a SAS URI were provided. A SAS URI is still preferred if it can be
+     * generated.
+     */
+    public bool $isPublicContainer;
+
+    /**
+     * Whether the configuration of this adapter allows SAS URI generation.
+     */
+    public bool $canGenerateSasUri;
 
     /**
      * @param  array{
@@ -60,6 +75,7 @@ final class AzureStorageBlobAdapter extends FilesystemAdapter
      *     url?: string,
      *     temporary_url?: string,
      *     is_public_container?: bool,
+     *     use_direct_public_url?: bool,
      *     timeout?: int,
      *     connect_timeout?: int,
      *     verify_ssl?: bool
@@ -70,15 +86,16 @@ final class AzureStorageBlobAdapter extends FilesystemAdapter
         $container = $config['container'];
         $prefix = $config['prefix'] ?? null;
         $root = $config['root'] ?? null;
-        $isPublicContainer = $config['is_public_container'] ?? false;
+        $this->isPublicContainer = $config['is_public_container'] ?? $config['use_direct_public_url'] ?? false;
 
         $serviceClient = self::createBlobServiceClient($config);
         $containerClient = $serviceClient->getContainerClient($container);
-        $this->canProvideTemporaryUrls = $containerClient->canGenerateSasUri();
+        $this->canGenerateSasUri = $containerClient->canGenerateSasUri();
+        $this->canProvideTemporaryUrls = $this->isPublicContainer || $this->canGenerateSasUri;
         $adapter = new AzureBlobStorageAdapter(
             $containerClient,
             $prefix ?? $root ?? '',
-            isPublicContainer: $isPublicContainer,
+            isPublicContainer: $this->isPublicContainer,
         );
 
         parent::__construct(
@@ -109,6 +126,7 @@ final class AzureStorageBlobAdapter extends FilesystemAdapter
      *     url?: string,
      *     temporary_url?: string,
      *     is_public_container?: bool,
+     *     use_direct_public_url?: bool,
      *     timeout?: int,
      *     connect_timeout?: int,
      *     verify_ssl?: bool
@@ -376,6 +394,12 @@ final class AzureStorageBlobAdapter extends FilesystemAdapter
     /** @phpstan-ignore-next-line */
     public function temporaryUrl($path, $expiration, array $options = [])
     {
+        // The public URL never expires but it is the best that can be done without
+        // credentials to generate a SAS URI.
+        if (! $this->canGenerateSasUri && $this->isPublicContainer) {
+            return $this->replaceTemporaryUrlOrigin($this->url($path));
+        }
+
         $url = $this->adapter->temporaryUrl(
             $path,
             $expiration,
@@ -395,6 +419,15 @@ final class AzureStorageBlobAdapter extends FilesystemAdapter
     /** @phpstan-ignore-next-line */
     public function temporaryUploadUrl($path, $expiration, array $options = [])
     {
+        // providesTemporaryUrls() may be true for a public container without
+        // credentials, but there is no public fallback for upload URLs.
+        if (! $this->canGenerateSasUri) {
+            throw new UnableToGenerateTemporaryUrl(
+                'Temporary upload URLs require credentials to generate a SAS URI.',
+                $path,
+            );
+        }
+
         $url = $this->adapter->temporaryUrl(
             $path,
             $expiration,

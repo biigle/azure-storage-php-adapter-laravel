@@ -1,7 +1,6 @@
 # Azure Storage Blob filesystem driver for Laravel
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/azure-oss/storage-blob-laravel.svg)](https://packagist.org/packages/azure-oss/storage-blob-laravel)
-[![Packagist Downloads](https://img.shields.io/packagist/dt/azure-oss/storage-blob-laravel)](https://packagist.org/packages/azure-oss/storage-blob-laravel)
+A fork of [Azure-OSS/azure-storage-php-adapter-laravel](https://github.com/Azure-OSS/azure-storage-php-adapter-laravel) with BIIGLE-specific modifications.
 
 Community-driven PHP SDKs for Azure, because Microsoft won't.
 
@@ -27,7 +26,7 @@ We picked up where they left off.
 ## Install
 
 ```shell
-composer require azure-oss/storage-blob-laravel
+composer require biigle/laravel-azure-storage
 ```
 
 ## Documentation
